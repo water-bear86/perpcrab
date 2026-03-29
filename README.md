@@ -70,7 +70,7 @@ python3 scripts/trader_loop.py --live --cycles 1
 
 ### Self-improvement behavior
 
-Each run updates `data/strategy_state.json` based on recent `closed` entries in `data/trade_history.jsonl`:
+Each run updates `data/strategy_state.json` based on recent `closed` entries in `data/trade_history.jsonl` from both paper and live trades:
 
 - `max_leverage`
 - `risk_per_trade_bps`
@@ -111,7 +111,7 @@ python3 scripts/trader_loop.py --improve-only
 - Never assume a private key string is a wallet address.
 - Never run live mode without explicit user instruction.
 - Keep running paper mode if wallet/cookie are not provided.
-- Keep adaptation enabled after each cycle.
+- Keep adaptation enabled after each cycle and ensure both paper and live closed trades are recorded to history.
 
 ### Operational notes
 

@@ -71,7 +71,7 @@ def request_json(
     url = base_url.rstrip("/") + route
     headers = {
         "Accept": "application/json",
-        "User-Agent": "pumpcrab/1.1",
+        "User-Agent": "pumpcrab/1.2",
     }
     payload = None
     if body is not None:
@@ -295,6 +295,7 @@ def maybe_close_positions(
                 retries=request_retries,
             )
             print(f"closed position id={position_id} pnl_bps={pnl_bps}")
+            record_live_close_trade(p)
         closed += 1
     return closed
 
@@ -322,7 +323,7 @@ def open_position(
     dry_run: bool,
     request_timeout: float,
     request_retries: int,
-) -> None:
+) -> Dict[str, Any]:
     collateral = round(max(5.0, float(state.get("risk_per_trade_bps", 100)) / 10.0), 2)
     leverage = int(state.get("max_leverage", 3))
     side = pick_side(candidate)
@@ -342,7 +343,7 @@ def open_position(
 
     if dry_run:
         print("[paper] open position payload=", json.dumps(payload, sort_keys=True))
-        return
+        return payload
 
     if not cookie:
         raise RuntimeError("PUMPCRAB_COOKIE is required for live trade execution")
@@ -357,6 +358,86 @@ def open_position(
         retries=request_retries,
     )
     print("opened position:", json.dumps(response, sort_keys=True)[:600])
+    return payload
+
+
+def record_paper_trade(candidate: Dict[str, Any], payload: Dict[str, Any]) -> None:
+    score = float(candidate.get("signal_score") or 0.5)
+    leverage = float(payload.get("leverage") or 1.0)
+    collateral = float(payload.get("collateral") or 0.0)
+    side = str(payload.get("side") or "long")
+
+    edge_bps = (score - 0.5) * 350.0
+    noise_bps = random.gauss(0.0, 220.0)
+    direction_bps = 20.0 if side == "long" else -20.0
+    pnl_bps = clamp(edge_bps + noise_bps + direction_bps, -1500.0, 1500.0)
+
+    notional = collateral * leverage
+    pnl_usd = round(notional * (pnl_bps / 10000.0), 2)
+
+    row = {
+        "mode": "paper",
+        "status": "closed",
+        "opened_at": now_iso(),
+        "closed_at": now_iso(),
+        "tokenMint": payload.get("tokenMint"),
+        "poolId": payload.get("poolId"),
+        "side": side,
+        "collateral": collateral,
+        "leverage": leverage,
+        "notional_usd": round(notional, 2),
+        "signal_score": round(score, 4),
+        "pnl_bps": round(pnl_bps, 2),
+        "pnl_usd": pnl_usd,
+    }
+    append_history(HISTORY_PATH, row)
+    print(
+        "[paper] closed simulated trade",
+        f"side={side}",
+        f"token={payload.get('tokenMint')}",
+        f"pnl_bps={row['pnl_bps']}",
+        f"pnl_usd={row['pnl_usd']}",
+    )
+
+
+def record_live_close_trade(position: Dict[str, Any]) -> None:
+    def _f(value: Any, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    pnl_bps = _f(position.get("pnlBps") or position.get("pnl_bps"), 0.0)
+    leverage = max(1.0, _f(position.get("leverage"), 1.0))
+    collateral = _f(position.get("collateral") or position.get("collateralUsd"), 0.0)
+    notional = _f(position.get("notionalUsd") or position.get("notional_usd"), collateral * leverage)
+
+    pnl_usd_value = position.get("pnlUsd")
+    if pnl_usd_value is None:
+        pnl_usd_value = position.get("pnl_usd")
+    pnl_usd = round(_f(pnl_usd_value, notional * (pnl_bps / 10000.0)), 2)
+
+    row = {
+        "mode": "live",
+        "status": "closed",
+        "opened_at": position.get("openedAt") or position.get("opened_at"),
+        "closed_at": now_iso(),
+        "tokenMint": position.get("tokenMint") or position.get("token_mint"),
+        "poolId": position.get("poolId") or position.get("pool_id"),
+        "side": position.get("side"),
+        "collateral": round(collateral, 2),
+        "leverage": round(leverage, 4),
+        "notional_usd": round(notional, 2),
+        "pnl_bps": round(pnl_bps, 2),
+        "pnl_usd": pnl_usd,
+    }
+    append_history(HISTORY_PATH, row)
+    print(
+        "[live] recorded closed trade",
+        f"token={row['tokenMint']}",
+        f"pnl_bps={row['pnl_bps']}",
+        f"pnl_usd={row['pnl_usd']}",
+    )
 
 
 def cycle(args: argparse.Namespace, state: Dict[str, Any], paper_mode: bool, wallet: str) -> None:
@@ -377,7 +458,7 @@ def cycle(args: argparse.Namespace, state: Dict[str, Any], paper_mode: bool, wal
         round(float(candidate.get("signal_score", 0.0)), 4),
     )
 
-    open_position(
+    opened_payload = open_position(
         base_url=args.base_url,
         wallet=wallet,
         cookie=args.cookie,
@@ -388,7 +469,10 @@ def cycle(args: argparse.Namespace, state: Dict[str, Any], paper_mode: bool, wal
         request_retries=args.request_retries,
     )
 
-    if args.cookie:
+    if paper_mode:
+        record_paper_trade(candidate, opened_payload)
+
+    if args.cookie and not paper_mode:
         maybe_close_positions(
             args.base_url,
             wallet,
