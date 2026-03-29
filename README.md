@@ -1,5 +1,7 @@
 # Pumpcrab Skill
 
+![Pumpcrab Logo](assets/skillperppump.png)
+
 A Codex skill and runnable Python loop for PumpPerps automation with strict safety defaults:
 
 - immediate paper trading on activation
