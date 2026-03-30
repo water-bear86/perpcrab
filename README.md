@@ -43,12 +43,53 @@ The dashboard flow prompts for missing LLM key, wallet, cookie, and Kelly aggres
 python3 scripts/trader_loop.py --dashboard --cycles 9999 --sleep-seconds 10
 ```
 
+Common launch commands:
+
+```bash
+# interactive dashboard (prompts for missing key/wallet/cookie + Kelly aggressiveness)
+python3 scripts/trader_loop.py --dashboard --cycles 9999 --sleep-seconds 10
+
+# non-interactive dashboard (for exported env vars / automation)
+python3 scripts/trader_loop.py --dashboard --no-prompts --dry-run --cycles 1000 --sleep-seconds 10
+
+# DeepSeek Reasoner dashboard
+PERPCRAB_LLM_API_BASE="https://api.deepseek.com/v1" \
+PERPCRAB_OPENAI_API_KEY="YOUR_DEEPSEEK_KEY" \
+PERPCRAB_LLM_MODEL="deepseek-reasoner" \
+python3 scripts/trader_loop.py --dashboard --cycles 9999 --sleep-seconds 10
+```
+
 Dashboard shows:
 
 - Open positions (opened time, unrealized PnL, side, leverage)
 - Recent closed positions (TP/SL/time-stop/hard-stop reason and final PnL)
 - Win/loss and win-rate
 - Latest LLM reasoning output
+
+### Switch LLM Model
+
+Use these knobs to switch to any OpenAI-compatible model/provider:
+
+- `PERPCRAB_LLM_API_BASE` (provider base URL)
+- `PERPCRAB_OPENAI_API_KEY` (API key)
+- `PERPCRAB_LLM_MODEL` (model name)
+
+Example with env vars:
+
+```bash
+PERPCRAB_LLM_API_BASE="https://api.deepseek.com/v1" \
+PERPCRAB_OPENAI_API_KEY="YOUR_KEY" \
+PERPCRAB_LLM_MODEL="deepseek-reasoner" \
+python3 scripts/trader_loop.py --dashboard --cycles 9999 --sleep-seconds 10
+```
+
+Or override by flags:
+
+```bash
+python3 scripts/trader_loop.py --dashboard \
+  --llm-api-base "https://api.deepseek.com/v1" \
+  --llm-model "deepseek-chat"
+```
 
 ### Paper mode examples
 
