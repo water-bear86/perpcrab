@@ -23,6 +23,7 @@ POOLS_CACHE_PATH = DATA_DIR / "pools_cache.json"
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 PAPER_WALLET = "PAPER_TRADING_WALLET"
 PAPER_POSITIONS_PATH = DATA_DIR / "paper_positions.json"
+ERROR_LOG_PATH = DATA_DIR / "runtime_errors.log"
 
 BRAND_ART = [
     "░░░░▄█▀▀▀░░░░░░░░▀▀▀█▄░░░░",
@@ -79,6 +80,13 @@ def append_history(path: Path, row: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(row, sort_keys=True) + "\n")
+
+
+def append_error_log(path: Path, message: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = f"[{now_iso()}] {sanitize_text(message)}"
+    with path.open("a", encoding="utf-8") as f:
+        f.write(line + "\n")
 
 
 def load_paper_positions(path: Path) -> List[Dict[str, Any]]:
@@ -466,6 +474,7 @@ def render_dashboard(
         ["win/loss", f"{wins}/{losses}"],
         ["win rate", f"{win_rate:.1%}"],
         ["timestamp", now_iso()],
+        ["error log", str(ERROR_LOG_PATH)],
     ]
     session_panel = make_fixed_table_panel(
         "SESSION",
@@ -474,7 +483,7 @@ def render_dashboard(
         panel_width=left_panel_width,
         min_col_widths=[14, 30],
         aligns=["left", "left"],
-        max_rows=10,
+        max_rows=11,
     )
 
     activity_rows = [
@@ -596,6 +605,23 @@ def render_dashboard(
     for line in event_panel:
         print(line)
     print()
+
+    if last_error:
+        error_lines = wrap_text(sanitize_text(last_error), width=max(20, full_panel_width - 14))
+        error_rows = [[idx + 1, line] for idx, line in enumerate(error_lines[:12])]
+        error_panel = make_fixed_table_panel(
+            "LAST ERROR (FULL)",
+            ["#", "TEXT"],
+            error_rows,
+            panel_width=full_panel_width,
+            min_col_widths=[4, 40],
+            aligns=["right", "left"],
+            max_rows=12,
+        )
+        for line in error_panel:
+            print(color_text(line, "red"))
+        print()
+
     for line in reasoning_panel:
         print(line)
 
@@ -1538,6 +1564,7 @@ def main() -> int:
             except RuntimeError as exc:
                 consecutive_failures += 1
                 last_error = str(exc)
+                append_error_log(ERROR_LOG_PATH, last_error)
                 cycle_activity["errors"] += 1
                 if not args.dashboard:
                     print(f"cycle failure {consecutive_failures}/3: {exc}")
