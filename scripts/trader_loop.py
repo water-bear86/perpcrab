@@ -41,6 +41,19 @@ FALLBACK_BRAND_ART = [
     r" |_|   |_____|_| \_\_|    \____|_| \_\/_/   \_\____/ ",
 ]
 
+TUI_V_LEFT = "▏"
+TUI_V_RIGHT = "▕"
+TUI_H_TOP = "▔"
+TUI_H_BOTTOM = "▁"
+TUI_CORNER_TL = "❐"
+TUI_CORNER_TR = "❏"
+TUI_CORNER_BL = "❒"
+TUI_CORNER_BR = "❑"
+TUI_JUNCTION = "▣"
+TUI_SHADE_LIGHT = "░"
+TUI_SHADE_MEDIUM = "▒"
+TUI_SHADE_DARK = "▓"
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -241,17 +254,17 @@ def make_fixed_table_panel(
     widths = fit_column_widths(panel_width, min_col_widths)
     col_count = len(widths)
 
-    title_label = f" {title} "
+    title_label = f"{TUI_SHADE_DARK}{title}{TUI_SHADE_DARK}"
     title_space = max(0, panel_width - 2 - len(title_label))
     left = title_space // 2
     right = title_space - left
-    title_line = "+" + ("-" * left) + title_label + ("-" * right) + "+"
+    title_line = TUI_CORNER_TL + (TUI_H_TOP * left) + title_label + (TUI_H_TOP * right) + TUI_CORNER_TR
 
-    sep = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
-    header_line = "|" + "|".join(
-        f" {align_cell(headers[i] if i < len(headers) else '', widths[i], 'center')} "
+    sep = TUI_JUNCTION + TUI_JUNCTION.join(TUI_SHADE_MEDIUM * (w + 2) for w in widths) + TUI_JUNCTION
+    header_line = TUI_V_LEFT + TUI_JUNCTION.join(
+        f"{TUI_SHADE_LIGHT}{align_cell(headers[i] if i < len(headers) else '', widths[i], 'center')}{TUI_SHADE_LIGHT}"
         for i in range(col_count)
-    ) + "|"
+    ) + TUI_V_RIGHT
 
     normalized_rows: List[List[Any]] = []
     for row in rows[:max_rows]:
@@ -262,15 +275,16 @@ def make_fixed_table_panel(
 
     body_lines = []
     for row in normalized_rows:
-        body = "|" + "|".join(
+        body = TUI_V_LEFT + TUI_JUNCTION.join(
             f" {align_cell(row[i], widths[i], aligns[i] if aligns and i < len(aligns) else 'left')} "
             for i in range(col_count)
-        ) + "|"
+        ) + TUI_V_RIGHT
         body_lines.append(body)
 
     lines = [title_line, sep, header_line, sep]
     lines.extend(body_lines)
-    lines.append(sep)
+    bottom = TUI_CORNER_BL + TUI_JUNCTION.join(TUI_H_BOTTOM * (w + 2) for w in widths) + TUI_CORNER_BR
+    lines.append(bottom)
     return lines
 
 
