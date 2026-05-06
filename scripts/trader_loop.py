@@ -1171,13 +1171,19 @@ def open_position(
     if not pool_id:
         raise RuntimeError("Could not resolve poolId for selected candidate")
 
+    token_mint = str(candidate.get("tokenMint") or pool_id)
+    is_long = str(side).lower() == "long"
+    # PumpPerps web app currently uses pool + isLong for opens. Keep side/poolId too
+    # for backward compatibility with older server handlers.
     payload = {
         "wallet": wallet,
+        "pool": token_mint,
+        "tokenMint": token_mint,
+        "isLong": is_long,
         "side": side,
         "collateral": collateral,
         "leverage": leverage,
         "poolId": pool_id,
-        "tokenMint": candidate.get("tokenMint"),
     }
 
     if dry_run:
